@@ -1,0 +1,110 @@
+*.db
+appsettings.json
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.cache
+*.vspscc
+*.vssscc
+
+# Rider files
+.idea/
+
+# User-specific files
+*.rsuser
+*.userprefs
+
+# Build results of an ideated project
+[Dd]ebugPublic/
+[Rr]eleasePublic/
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# MSTest results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# NUnit results
+*.VisualState.xml
+TestResult.xml
+nunit-*.xml
+
+# xUnit results
+xunit.xml
+
+# Build results
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.ipdb
+
+# Windows thumbnail cache
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Files built by Visual Studio
+*.pidb
+*.svclog
+*.scc
+
+# Publish profiles
+PublishScripts/
+*.pubxml
+*.publishproj
+
+# NuGet package restore
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ASP.NET scaffolding
+ScaffoldingReadMe.txt
+
+# Secrets and config overrides
+appsettings.*.json
+secrets.json
+*.secrets.json
+
+# Local environment files
+.env
+.env.*
+*.local
+
+# Code coverage
+coverage/
+*.coverage
+*.coveragexml
