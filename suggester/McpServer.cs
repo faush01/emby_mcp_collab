@@ -15,9 +15,9 @@ public class SuggesterTools : IDisposable
     private readonly EmbeddingClient _embeddingClient;
     private readonly DocInfoStorage _storageClient;
     private readonly EmbyMediaApiClient _embyClient;
-    private readonly ILogger<SuggesterTools>? _logger;
+    private readonly ILogger<SuggesterTools> _logger;
 
-    public SuggesterTools(ILogger<SuggesterTools>? logger = null)
+    public SuggesterTools(ILogger<SuggesterTools> logger)
     {
         var config = SuggesterConfig.Settings;
         
@@ -27,24 +27,25 @@ public class SuggesterTools : IDisposable
         _embyClient = new EmbyMediaApiClient(config.EmbyApiBaseUrl, config.EmbyApiKey);
         
         _logger = logger;
-        _logger?.LogInformation("SuggesterTools initialized with {ToolCount} tools available", 5);
+        _logger.LogInformation("SuggesterTools initialized");
     }
 
     public void Dispose()
     {
+        _logger.LogInformation("SuggesterTools disposed");
         _storageClient?.Dispose();
         _embyClient?.Dispose();
     }
 
     private void LogToolCall(string toolName, string parameters)
     {
-        _logger?.LogInformation("[MCP TOOL CALL] {ToolName} called with: {Parameters}", toolName, parameters);
+        _logger.LogInformation("[MCP TOOL CALL] {ToolName} called with: {Parameters}", toolName, parameters);
     }
 
     private void LogToolResponse(string toolName, string response)
     {
-        var truncatedResponse = response.Length > 500 ? response.Substring(0, 500) + "..." : response;
-        _logger?.LogInformation("[MCP TOOL RESPONSE] {ToolName} returned: \n{Response}", toolName, truncatedResponse);
+        var truncatedResponse = response.Length > 500 ? response[..500] + "..." : response;
+        _logger.LogInformation("[MCP TOOL RESPONSE] {ToolName} returned: \n{Response}", toolName, truncatedResponse);
     }
 
     [McpServerTool, Description("Search for movies similar to a given movie by its ID. Returns a list of similar movies based on embedding similarity.")]

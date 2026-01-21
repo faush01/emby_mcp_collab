@@ -155,7 +155,19 @@ namespace suggester
             Console.WriteLine($"MCP endpoint: http://<your-ip>:{port}/mcp");
             
             var builder = WebApplication.CreateBuilder();
+            builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+            builder.Logging.AddFilter("Microsoft.AspNetCore.Routing.EndpointMiddleware", LogLevel.Warning);
+            builder.Logging.AddFilter("ModelContextProtocol.Server.McpServer", LogLevel.Warning);
+            builder.Logging.AddSimpleConsole(options =>
+            {
+                options.SingleLine = true;
+                options.TimestampFormat = "HH:mm:ss ";
+            });
+
             builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+            
+            // Register SuggesterTools as singleton so state persists across tool calls
+            builder.Services.AddSingleton<SuggesterTools>();
             
             builder.Services
                 .AddMcpServer()
