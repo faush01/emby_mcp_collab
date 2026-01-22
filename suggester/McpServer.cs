@@ -20,19 +20,12 @@ public class SessionData
 
 public class SessionContext
 {
-    private static readonly Lazy<SessionContext> _instance = new(() => new SessionContext(), LazyThreadSafetyMode.ExecutionAndPublication);
-    public static SessionContext Instance => _instance.Value;
-    private SessionContext() { }
     private ConcurrentDictionary<string, SessionData> Data { get; } = new ConcurrentDictionary<string, SessionData>();
-    private ILogger? _logger;
+    private ILogger<SessionContext> _logger;
 
-    /// <summary>
-    /// Initialize the singleton with a logger factory. Call this once at startup.
-    /// </summary>
-    public void Initialize(ILoggerFactory loggerFactory)
-    {
-        _logger = loggerFactory.CreateLogger(typeof(SessionContext));
-        _logger.LogInformation("SessionContext initialized");
+    public SessionContext(ILogger<SessionContext> logger) 
+    { 
+        _logger = logger;
     }
 
     public SessionData GetSessionData(string sessionId)
@@ -77,8 +70,11 @@ public class SuggesterTools : IDisposable
     private readonly EmbyMediaApiClient _embyClient;
     private readonly ILogger<SuggesterTools> _logger;
     private readonly string _sessionId;
+    private readonly SessionContext _sessionContext;
 
-    public SuggesterTools(McpServer server, ILogger<SuggesterTools> logger)
+    public SuggesterTools(McpServer server, 
+        ILogger<SuggesterTools> logger,
+        SessionContext sessionContext)
     {
         var config = SuggesterConfig.Settings;
         
@@ -90,6 +86,7 @@ public class SuggesterTools : IDisposable
         _logger = logger;
         _sessionId = server.SessionId ?? "unknown";
         _logger.LogInformation("{sessionId} - SuggesterTools initialized", _sessionId);
+        _sessionContext = sessionContext;
     }
 
     public void Dispose()
@@ -98,12 +95,12 @@ public class SuggesterTools : IDisposable
         _storageClient?.Dispose();
         _embyClient?.Dispose();
 
-        SessionContext.Instance.PrintAllSessions();
-        SessionData sessionData = SessionContext.Instance.GetSessionData(_sessionId);
+        _sessionContext.PrintAllSessions();
+        SessionData sessionData = _sessionContext.GetSessionData(_sessionId);
+        _logger.LogInformation("{sessionId} - Printing all session data", _sessionId);
         foreach(var key in sessionData.Data.Keys.ToList())
         {
-            //Console.WriteLine("Session data key: {0} = {1}", key, sessionData.Data[key]);
-            _logger.LogInformation("{sessionId} -   - key: {Key} = {Value}", _sessionId, key, sessionData.Data[key]);
+            _logger.LogInformation("{sessionId} - key: {Key} = {Value}", _sessionId, key, sessionData.Data[key]);
         }
     }
 
@@ -123,8 +120,8 @@ public class SuggesterTools : IDisposable
         [Description("The movie ID to find similar movies for")] string movieId,
         [Description("Number of similar movies to return (default: 10)")] int topN = 10)
     {
-        SessionContext.Instance.PrintAllSessions();
-        SessionData sessionData = SessionContext.Instance.GetSessionData(_sessionId);
+        _sessionContext.PrintAllSessions();
+        SessionData sessionData = _sessionContext.GetSessionData(_sessionId);
         sessionData.Data["last_movie_id"] = movieId;
 
         try
@@ -272,8 +269,8 @@ public class SuggesterTools : IDisposable
     [McpServerTool, Description("Get the total count of movies in the database.")]
     public string GetMovieCount()
     {
-        SessionContext.Instance.PrintAllSessions();
-        SessionData sessionData = SessionContext.Instance.GetSessionData(_sessionId);
+        _sessionContext.PrintAllSessions();
+        SessionData sessionData = _sessionContext.GetSessionData(_sessionId);
         LogToolCall(nameof(GetMovieCount), "(no parameters)");
         try
         {

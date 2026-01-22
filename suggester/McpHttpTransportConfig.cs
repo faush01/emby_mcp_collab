@@ -29,6 +29,9 @@ public static class McpHttpTransportConfig
         var loggerFactory = httpContext.RequestServices.GetRequiredService<ILoggerFactory>();
         var logger = loggerFactory.CreateLogger(typeof(McpHttpTransportConfig));
 
+        // Resolve SessionContext singleton from DI container
+        var sessionContext = httpContext.RequestServices.GetRequiredService<SessionContext>();
+
         // Log all HTTP request headers
         logger.LogDebug("=== HTTP Request Headers ===");
         foreach (var header in httpContext.Request.Headers)
@@ -47,16 +50,15 @@ public static class McpHttpTransportConfig
         try
         {
             // Initialize session data at the start of the session
-            var sessionData = SessionContext.Instance.GetSessionData(mcpServer.SessionId);
-            logger.LogInformation("Session '{SessionId}' started.", mcpServer.SessionId);
-
+            logger.LogInformation("Session '{SessionId}' starting.", mcpServer.SessionId);
+            var sessionData = sessionContext.GetSessionData(mcpServer.SessionId);
             await mcpServer.RunAsync(token);
         }
         finally
         {
             // This code runs when the session ends - clean up session data
             logger.LogInformation("Session '{SessionId}' ended. Cleaning up session data.", mcpServer.SessionId);
-            SessionContext.Instance.RemoveSession(mcpServer.SessionId);
+            sessionContext.RemoveSession(mcpServer.SessionId);
         }
     }
 }
