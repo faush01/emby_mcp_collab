@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using suggester.Models;
 
@@ -10,14 +11,74 @@ namespace suggester;
 /// These tools can be called by MCP clients like Open WebUI.
 /// </summary>
 [McpServerToolType]
+
+public class SessionData
+{
+    public ConcurrentDictionary<string, object> Data { get; } = new ConcurrentDictionary<string, object>();
+    public DateTime LastAccessed { get; set; } = DateTime.UtcNow;
+}
+
+public class SessionContext
+{
+    private static readonly Lazy<SessionContext> _instance = new(() => new SessionContext(), LazyThreadSafetyMode.ExecutionAndPublication);
+    public static SessionContext Instance => _instance.Value;
+    private SessionContext() { }
+    private ConcurrentDictionary<string, SessionData> Data { get; } = new ConcurrentDictionary<string, SessionData>();
+    private ILogger? _logger;
+
+    /// <summary>
+    /// Initialize the singleton with a logger factory. Call this once at startup.
+    /// </summary>
+    public void Initialize(ILoggerFactory loggerFactory)
+    {
+        _logger = loggerFactory.CreateLogger(typeof(SessionContext));
+        _logger.LogInformation("SessionContext initialized");
+    }
+
+    public SessionData GetSessionData(string sessionId)
+    {
+        _logger?.LogInformation("Retrieving session data for session '{SessionId}'", sessionId);
+
+        var sessionData = Data.GetOrAdd(sessionId, _ =>
+        {
+            _logger?.LogInformation("Adding SessionData() for session '{SessionId}'", sessionId);
+            return new SessionData();
+        });
+
+        sessionData.LastAccessed = DateTime.UtcNow;
+        return sessionData;
+    }
+
+    /// <summary>
+    /// Remove session data when a session ends. Called from the RunSessionHandler.
+    /// </summary>
+    public bool RemoveSession(string sessionId)
+    {
+        _logger?.LogInformation("Removing SessionData() for session '{SessionId}'", sessionId);
+        return Data.TryRemove(sessionId, out _);
+    }
+
+    public void PrintAllSessions()
+    {
+        _logger?.LogInformation("Current sessions:");
+        foreach (var kvp in Data)
+        {
+            double age = (DateTime.UtcNow - kvp.Value.LastAccessed).TotalSeconds;
+            _logger?.LogInformation(" - Session '{SessionId}' last accessed {Age:F2} seconds ago.", kvp.Key, age);
+        }
+    }   
+}
+
+
 public class SuggesterTools : IDisposable
 {
     private readonly EmbeddingClient _embeddingClient;
     private readonly DocInfoStorage _storageClient;
     private readonly EmbyMediaApiClient _embyClient;
     private readonly ILogger<SuggesterTools> _logger;
+    private readonly string _sessionId;
 
-    public SuggesterTools(ILogger<SuggesterTools> logger)
+    public SuggesterTools(McpServer server, ILogger<SuggesterTools> logger)
     {
         var config = SuggesterConfig.Settings;
         
@@ -27,25 +88,34 @@ public class SuggesterTools : IDisposable
         _embyClient = new EmbyMediaApiClient(config.EmbyApiBaseUrl, config.EmbyApiKey);
         
         _logger = logger;
-        _logger.LogInformation("SuggesterTools initialized");
+        _sessionId = server.SessionId ?? "unknown";
+        _logger.LogInformation("{sessionId} - SuggesterTools initialized", _sessionId);
     }
 
     public void Dispose()
     {
-        _logger.LogInformation("SuggesterTools disposed");
+        _logger.LogInformation("{sessionId} - SuggesterTools disposed", _sessionId);
         _storageClient?.Dispose();
         _embyClient?.Dispose();
+
+        SessionContext.Instance.PrintAllSessions();
+        SessionData sessionData = SessionContext.Instance.GetSessionData(_sessionId);
+        foreach(var key in sessionData.Data.Keys.ToList())
+        {
+            //Console.WriteLine("Session data key: {0} = {1}", key, sessionData.Data[key]);
+            _logger.LogInformation("{sessionId} -   - key: {Key} = {Value}", _sessionId, key, sessionData.Data[key]);
+        }
     }
 
     private void LogToolCall(string toolName, string parameters)
     {
-        _logger.LogInformation("[MCP TOOL CALL] {ToolName} called with: {Parameters}", toolName, parameters);
+        _logger.LogInformation("{sessionId} - [MCP TOOL CALL] {ToolName} called with: {Parameters}", _sessionId, toolName, parameters);
     }
 
     private void LogToolResponse(string toolName, string response)
     {
         var truncatedResponse = response.Length > 500 ? response[..500] + "..." : response;
-        _logger.LogInformation("[MCP TOOL RESPONSE] {ToolName} returned: \n{Response}", toolName, truncatedResponse);
+        _logger.LogInformation("{sessionId} - [MCP TOOL RESPONSE] {ToolName} returned: \n{Response} ", _sessionId, toolName, truncatedResponse);
     }
 
     [McpServerTool, Description("Search for movies similar to a given movie by its ID. Returns a list of similar movies based on embedding similarity.")]
@@ -53,7 +123,10 @@ public class SuggesterTools : IDisposable
         [Description("The movie ID to find similar movies for")] string movieId,
         [Description("Number of similar movies to return (default: 10)")] int topN = 10)
     {
-        LogToolCall(nameof(FindSimilarMovies), $"movieId='{movieId}', topN={topN}");
+        SessionContext.Instance.PrintAllSessions();
+        SessionData sessionData = SessionContext.Instance.GetSessionData(_sessionId);
+        sessionData.Data["last_movie_id"] = movieId;
+
         try
         {
             // Try to find the movie - first check if it's an ID
@@ -199,10 +272,15 @@ public class SuggesterTools : IDisposable
     [McpServerTool, Description("Get the total count of movies in the database.")]
     public string GetMovieCount()
     {
+        SessionContext.Instance.PrintAllSessions();
+        SessionData sessionData = SessionContext.Instance.GetSessionData(_sessionId);
         LogToolCall(nameof(GetMovieCount), "(no parameters)");
         try
         {
             var allDocs = _storageClient.LoadAllDocItems();
+            sessionData.Data["movie_count"] = allDocs.Count;
+            sessionData.Data["last_updated"] = DateTime.UtcNow.ToString();
+
             var successResult = $"There are {allDocs.Count} movies indexed in the database.";
             LogToolResponse(nameof(GetMovieCount), successResult);
             return successResult;

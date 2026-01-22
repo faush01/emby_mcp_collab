@@ -166,15 +166,16 @@ namespace suggester
 
             builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
             
-            // Register SuggesterTools as singleton so state persists across tool calls
-            builder.Services.AddSingleton<SuggesterTools>();
-            
             builder.Services
                 .AddMcpServer()
-                .WithHttpTransport()
+                .WithHttpTransport(McpHttpTransportConfig.Configure)
                 .WithTools<SuggesterTools>();
 
             var app = builder.Build();
+            
+            // Initialize the SessionContext singleton with the logger factory
+            var loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
+            SessionContext.Instance.Initialize(loggerFactory);
             
             // Map the MCP endpoint for Streamable HTTP at /mcp path
             app.MapMcp("/mcp");
