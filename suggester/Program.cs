@@ -166,7 +166,7 @@ namespace suggester
 
             builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
             
-            builder.Services.AddSingleton<SessionContext>();
+            builder.Services.AddSingleton<ISessionContext, SessionContext>();
 
             builder.Services
                 .AddMcpServer()

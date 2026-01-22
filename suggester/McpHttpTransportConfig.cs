@@ -30,7 +30,7 @@ public static class McpHttpTransportConfig
         var logger = loggerFactory.CreateLogger(typeof(McpHttpTransportConfig));
 
         // Resolve SessionContext singleton from DI container
-        var sessionContext = httpContext.RequestServices.GetRequiredService<SessionContext>();
+        var sessionContext = httpContext.RequestServices.GetRequiredService<ISessionContext>();
 
         // Log all HTTP request headers
         logger.LogDebug("=== HTTP Request Headers ===");

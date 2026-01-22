@@ -18,7 +18,14 @@ public class SessionData
     public DateTime LastAccessed { get; set; } = DateTime.UtcNow;
 }
 
-public class SessionContext
+public interface ISessionContext
+{
+    SessionData GetSessionData(string sessionId);
+    bool RemoveSession(string sessionId);
+    void PrintAllSessions();
+}
+
+public class SessionContext : ISessionContext
 {
     private ConcurrentDictionary<string, SessionData> Data { get; } = new ConcurrentDictionary<string, SessionData>();
     private ILogger<SessionContext> _logger;
@@ -70,11 +77,11 @@ public class SuggesterTools : IDisposable
     private readonly EmbyMediaApiClient _embyClient;
     private readonly ILogger<SuggesterTools> _logger;
     private readonly string _sessionId;
-    private readonly SessionContext _sessionContext;
+    private readonly ISessionContext _sessionContext;
 
     public SuggesterTools(McpServer server, 
         ILogger<SuggesterTools> logger,
-        SessionContext sessionContext)
+        ISessionContext sessionContext)
     {
         var config = SuggesterConfig.Settings;
         
@@ -228,6 +235,10 @@ public class SuggesterTools : IDisposable
         LogToolCall(nameof(GetMovieDocument), $"movieId='{movieId}'");
         try
         {
+            SessionData sessionData = _sessionContext.GetSessionData(_sessionId);
+            sessionData.Data["last_updated"] = DateTime.UtcNow.ToString("HH:mm:ss.fff");
+            sessionData.Data["last_updated_02"] = DateTime.UtcNow.ToString("HH:mm:ss.fff");
+
             Movie? movie = null;
 
             // Try as ID first
