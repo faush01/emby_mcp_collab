@@ -33,12 +33,12 @@ public static class McpHttpTransportConfig
         var sessionContext = httpContext.RequestServices.GetRequiredService<ISessionContext>();
 
         // Log all HTTP request headers
-        logger.LogDebug("=== HTTP Request Headers ===");
+        logger.LogInformation("=== HTTP Request Headers ===");
         foreach (var header in httpContext.Request.Headers)
         {
-            logger.LogDebug("  {HeaderKey}: {HeaderValue}", header.Key, header.Value);
+            logger.LogInformation("  {HeaderKey}: {HeaderValue}", header.Key, header.Value);
         }
-        logger.LogDebug("============================");
+        logger.LogInformation("============================");
 
         if (mcpServer.SessionId == null)
         {

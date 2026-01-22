@@ -48,4 +48,5 @@ public class SuggesterSettings
     public string OllamaEndpoint { get; set; } = "http://localhost:11434/v1";
     public string EmbeddingModel { get; set; } = "qwen3-embedding:0.6b";
     public string DatabasePath { get; set; } = "docs.db";
+    public string SessionIdHeader { get; set; } = "";
 }

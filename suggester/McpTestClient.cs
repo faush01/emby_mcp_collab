@@ -24,10 +24,17 @@ public class McpTestClient
 
         try
         {
-            var clientTransport = new HttpClientTransport(new HttpClientTransportOptions
+            string _bearerToken = "Some_data_for_authentication"; 
+            var transportOptions = new HttpClientTransportOptions
             {
                 Endpoint = new Uri(_serverUrl)
-            });
+            };
+            transportOptions.AdditionalHeaders = new Dictionary<string, string>
+            {
+                ["Authorization"] = $"Bearer {_bearerToken}"
+            };
+
+            var clientTransport = new HttpClientTransport(transportOptions);
             await using var client = await McpClient.CreateAsync(clientTransport);
 
             Console.WriteLine("Connected successfully!\n");

@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using suggester.Models;
+using System.Security.Cryptography;
 
 namespace suggester;
 
@@ -78,10 +80,13 @@ public class SuggesterTools : IDisposable
     private readonly ILogger<SuggesterTools> _logger;
     private readonly string _sessionId;
     private readonly ISessionContext _sessionContext;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public SuggesterTools(McpServer server, 
+    public SuggesterTools(
+        McpServer server, 
         ILogger<SuggesterTools> logger,
-        ISessionContext sessionContext)
+        ISessionContext sessionContext,
+        IHttpContextAccessor httpContextAccessor)
     {
         var config = SuggesterConfig.Settings;
         
@@ -91,9 +96,28 @@ public class SuggesterTools : IDisposable
         _embyClient = new EmbyMediaApiClient(config.EmbyApiBaseUrl, config.EmbyApiKey);
         
         _logger = logger;
-        _sessionId = server.SessionId ?? "unknown";
-        _logger.LogInformation("{sessionId} - SuggesterTools initialized", _sessionId);
         _sessionContext = sessionContext;
+        _httpContextAccessor = httpContextAccessor;
+
+        // set up session context ID
+        LogHeaders();
+        string headersSessionId = GetSessionIdFromHeaders();
+        if (!string.IsNullOrEmpty(headersSessionId))
+        {
+            _sessionId = headersSessionId;
+            _logger.LogInformation("{sessionId} - Using SessionId from headers", _sessionId);
+        }
+        else if(!string.IsNullOrEmpty(server.SessionId))
+        {
+            _sessionId = server.SessionId;
+            _logger.LogInformation("{sessionId} - Using MCP SessionId", _sessionId);
+        }
+        else
+        {
+            _sessionId = "Global";
+            _logger.LogInformation("{sessionId} - Generated new SessionId", _sessionId);
+        }
+        _logger.LogInformation("{sessionId} - SuggesterTools initialized", _sessionId);
     }
 
     public void Dispose()
@@ -111,6 +135,10 @@ public class SuggesterTools : IDisposable
         }
     }
 
+    ///////////////////////////////////////////////////////////////////////////////////
+    // Helpers for logging tool calls and responses
+    //
+
     private void LogToolCall(string toolName, string parameters)
     {
         _logger.LogInformation("{sessionId} - [MCP TOOL CALL] {ToolName} called with: {Parameters}", _sessionId, toolName, parameters);
@@ -121,6 +149,50 @@ public class SuggesterTools : IDisposable
         var truncatedResponse = response.Length > 500 ? response[..500] + "..." : response;
         _logger.LogInformation("{sessionId} - [MCP TOOL RESPONSE] {ToolName} returned: \n{Response} ", _sessionId, toolName, truncatedResponse);
     }
+
+    private void LogHeaders()
+    {
+        if(_httpContextAccessor != null && _httpContextAccessor.HttpContext != null)
+        {
+            var headers = _httpContextAccessor.HttpContext.Request.Headers;
+            // You can now use headers as needed
+            _logger.LogInformation("HTTP Request Headers:");
+            foreach (var header in headers)
+            {
+                _logger.LogInformation(" -   {HeaderKey}: {HeaderValue}", header.Key, header.Value);
+            }
+        }
+    }
+
+    private string GetSessionIdFromHeaders()
+    {
+        var config = SuggesterConfig.Settings;
+        if (!string.IsNullOrEmpty(config.SessionIdHeader) && _httpContextAccessor != null && _httpContextAccessor.HttpContext != null)
+        {
+            _logger.LogInformation("Looking for SessionId Header : {HeaderName}", config.SessionIdHeader);
+            var headers = _httpContextAccessor.HttpContext.Request.Headers;
+            foreach(var name in headers.Keys)
+            {
+                if (name.Equals(config.SessionIdHeader, StringComparison.OrdinalIgnoreCase))
+                {
+                    string sessionId = headers[name].FirstOrDefault() ?? "";
+                    if (!string.IsNullOrEmpty(sessionId))
+                    {
+                        _logger.LogInformation("Found SessionId Header: {HeaderName} = {HeaderValue}", name, sessionId);
+                        sessionId = MD5.HashData(System.Text.Encoding.UTF8.GetBytes(sessionId))
+                            .Aggregate("", (s, b) => s + b.ToString("x2"));
+                        _logger.LogInformation("Hashed SessionId: {SessionId}", sessionId);
+                        return sessionId;
+                    }
+                }
+            }
+        }
+        return "";
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////
+    // MCP Server Tools
+    //
 
     [McpServerTool, Description("Search for movies similar to a given movie by its ID. Returns a list of similar movies based on embedding similarity.")]
     public async Task<string> FindSimilarMovies(
@@ -166,6 +238,11 @@ public class SuggesterTools : IDisposable
 
             // Format results
             var results = new List<string>();
+            if (similarDocs.Count > 0)
+            {
+                var name_of_first = similarDocs[0].Document.DocName;
+                sessionData.Data["search_id_" + movieId] = name_of_first;
+            }
             foreach (var result in similarDocs)
             {
                 var doc = result.Document;
