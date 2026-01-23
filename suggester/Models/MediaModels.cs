@@ -1,5 +1,17 @@
 namespace suggester.Models
 {
+    public class AuthenticationResponse
+    {
+        public string AccessToken { get; set; } = string.Empty;
+        public AuthUser? User { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class AuthUser
+    {
+        public string Id { get; set; } = string.Empty;
+    }
+
     public class MediaResponse
     {
         public List<Movie> Items { get; set; } = new();

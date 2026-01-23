@@ -194,6 +194,72 @@ public class SuggesterTools : IDisposable
     // MCP Server Tools
     //
 
+    [McpServerTool, Description("This tool returnes the stored session values.")]
+    public Task<string> ShowToolSessionData()
+    {
+        _logger.LogInformation("{sessionId} - Tools session data shown", _sessionId);
+        List<string> sessionDataLines = new List<string>();
+        foreach(var kvp in _sessionContext.GetSessionData(_sessionId).Data)
+        {
+            sessionDataLines.Add($" - {kvp.Key} = {kvp.Value}");
+            _logger.LogInformation("{sessionId} -   {Key} = {Value}", _sessionId, kvp.Key, kvp.Value);
+        }
+        return Task.FromResult("Your current session data:\n" + string.Join("\n", sessionDataLines));
+    }
+
+    [McpServerTool, Description("This tool resets the tools session, clearing all session data.")]
+    public Task<string> ResetToolsSession()
+    {
+        _sessionContext.RemoveSession(_sessionId);
+        _logger.LogInformation("{sessionId} - Tools session reset", _sessionId);
+        return Task.FromResult("Your session has been reset. All session data has been cleared.");
+    }
+
+    [McpServerTool, Description("This tool logs a user into the Emby server using provided credentials.")]
+    public async Task<string> LoginToEmbyServer(
+        [Description("Emby user name")] string userName,
+        [Description("Emby user password")] string password = "")
+    {
+        AuthenticationResponse authResponse = await _embyClient.AuthenticateAsync(userName, password);
+
+        if (authResponse == null || string.IsNullOrEmpty(authResponse.AccessToken) || authResponse.User == null)
+        {
+            return "Login failed: Invalid username or password.\n\n";
+        }
+
+        string access_token = authResponse.AccessToken;
+        string user_id = authResponse.User.Id;
+
+        SessionData sessionData = _sessionContext.GetSessionData(_sessionId);
+        sessionData.Data["access_token"] = access_token;
+        sessionData.Data["user_id"] = user_id;
+        sessionData.Data["user_name"] = userName;
+
+        return "You are now logged into the Emby server with the following details:\n" +
+               $"- User Name: {userName}\n" +
+               $"- Access Token: {access_token}\n" +
+               $"- User ID: {user_id}\n\n";
+    }
+
+    [McpServerTool, Description("This tool checks the login status of a user on the Emby server.")]
+    public Task<string> CheckEmbyServerLoginStatus()
+    {
+        SessionData sessionData = _sessionContext.GetSessionData(_sessionId);
+        string userName = sessionData.Data.ContainsKey("user_name") ? sessionData.Data["user_name"].ToString() ?? "" : "";
+        string access_token = sessionData.Data.ContainsKey("access_token") ? sessionData.Data["access_token"].ToString() ?? "" : "";
+        string user_id = sessionData.Data.ContainsKey("user_id") ? sessionData.Data["user_id"].ToString() ?? "" : "";
+
+        if (string.IsNullOrEmpty(access_token) || string.IsNullOrEmpty(user_id))
+        {
+            return Task.FromResult("You are not logged into the Emby server. Please use the LoginToEmbyServer tool to log in.\n\n");
+        }
+
+        return Task.FromResult("You are logged into the Emby server with the following details:\n" +
+               $"- User Name: {userName}\n" +
+               $"- Access Token: {access_token}\n" +
+               $"- User ID: {user_id}\n\n");
+    }    
+
     [McpServerTool, Description("Search for movies similar to a given movie by its ID. Returns a list of similar movies based on embedding similarity.")]
     public async Task<string> FindSimilarMovies(
         [Description("The movie ID to find similar movies for")] string movieId,

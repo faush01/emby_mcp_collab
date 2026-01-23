@@ -1,5 +1,6 @@
 *.db
 appsettings.json
+.vscode
 
 # Build results
 [Dd]ebug/

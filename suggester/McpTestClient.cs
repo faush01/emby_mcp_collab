@@ -63,6 +63,20 @@ public class McpTestClient
             }
             Console.WriteLine();
 
+            // Test login_to_emby_server
+            Console.WriteLine("=== Testing login_to_emby_server ===");
+            var loginResult = await client.CallToolAsync("login_to_emby_server", new Dictionary<string, object?>
+            {
+                ["userName"] = "admin",
+                ["password"] = "password"
+            });
+            PrintResult(loginResult);
+
+            // Test check_emby_server_login_status
+            Console.WriteLine("=== Testing check_emby_server_login_status ===");
+            var statusResult = await client.CallToolAsync("check_emby_server_login_status", new Dictionary<string, object?>());
+            PrintResult(statusResult);
+
             // Test get_movie_count
             Console.WriteLine("=== Testing get_movie_count ===");
             var countResult = await client.CallToolAsync("get_movie_count", new Dictionary<string, object?>());
@@ -103,6 +117,11 @@ public class McpTestClient
             });
             PrintResult(detailsResult);
 
+            // Test show_tool_session_data
+            Console.WriteLine("=== Testing show_tool_session_data ===");
+            var sessionDataResult = await client.CallToolAsync("show_tool_session_data", new Dictionary<string, object?>());
+            PrintResult(sessionDataResult);
+            
             Console.WriteLine("\n=== All tests completed successfully! ===");
         }
         catch (Exception ex)

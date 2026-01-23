@@ -40,6 +40,74 @@ namespace suggester
             };
         }
 
+        // authenticate to the Emby server to get an access token to store in the session
+        public async Task<AuthenticationResponse> AuthenticateAsync(string username, string password = "", CancellationToken cancellationToken = default)
+        {
+            username = username.Trim();
+            if (string.IsNullOrEmpty(username))
+            {
+                return new AuthenticationResponse { Message = "No username provided" };
+            }
+
+            // Send as form-urlencoded data like the Python version
+            var formData = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("username", username),
+                new KeyValuePair<string, string>("pw", password)
+            });
+
+            // Add X-Emby-Authorization header required for authentication
+            const string client = "Suggester";
+            const string deviceName = "suggester_device";
+            const string deviceId = "1234-1234-1234";
+            const string version = "1.0.0";
+            var authString = $"MediaBrowser Client=\"{client}\",Device=\"{deviceName}\",DeviceId=\"{deviceId}\",Version=\"{version}\"";
+            
+            using var request = new HttpRequestMessage(HttpMethod.Post, "Users/AuthenticateByName")
+            {
+                Content = formData
+            };
+            request.Headers.TryAddWithoutValidation("X-Emby-Authorization", authString);
+
+            try
+            {
+                var response = await _httpClient.SendAsync(request, cancellationToken);
+
+                // Dump full response text for debugging
+                var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
+                Console.WriteLine($"AuthenticateByName Response:\n{responseText}");
+                
+                if(response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    Console.WriteLine("Authentication failed: Unauthorized");
+                    return new AuthenticationResponse { Message = "Unauthorized: " + responseText };
+                }
+                response.EnsureSuccessStatusCode();
+
+                var authResponse = JsonSerializer.Deserialize<AuthenticationResponse>(responseText, _jsonOptions);
+
+                if (authResponse != null && !string.IsNullOrEmpty(authResponse.AccessToken))
+                {
+                    // Store the access token for future requests
+                    _httpClient.DefaultRequestHeaders.Authorization =
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", authResponse.AccessToken);
+                    return authResponse;
+                }
+
+                return new AuthenticationResponse { Message = "Authentication failed: Unknown error: " + responseText};
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"HTTP request failed: {ex.Message}");
+                throw;
+            }
+            catch (JsonException ex)
+            {
+                Console.WriteLine($"JSON parsing failed: {ex.Message}");
+                throw;
+            }
+        }   
+
         public async Task<Movie?> GetMovieAsync(string movieId, CancellationToken cancellationToken = default)
         {
             var queryParams = new Dictionary<string, string>
