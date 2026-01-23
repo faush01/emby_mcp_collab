@@ -168,6 +168,7 @@ namespace suggester
             
             builder.Services.AddSingleton<ISessionContext, SessionContext>();
             builder.Services.AddHttpContextAccessor();
+            builder.Services.AddHostedService<SessionCleanupService>();
 
             builder.Services
                 .AddMcpServer()

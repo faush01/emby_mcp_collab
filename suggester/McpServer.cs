@@ -25,6 +25,7 @@ public interface ISessionContext
     SessionData GetSessionData(string sessionId);
     bool RemoveSession(string sessionId);
     void PrintAllSessions();
+    int CleanupStaleSessions(TimeSpan maxAge);
 }
 
 public class SessionContext : ISessionContext
@@ -68,7 +69,73 @@ public class SessionContext : ISessionContext
             double age = (DateTime.UtcNow - kvp.Value.LastAccessed).TotalSeconds;
             _logger?.LogInformation(" - Session '{SessionId}' last accessed {Age:F2} seconds ago.", kvp.Key, age);
         }
-    }   
+    }
+
+    public int CleanupStaleSessions(TimeSpan maxAge)
+    {
+        var cutoff = DateTime.UtcNow - maxAge;
+        var staleSessions = Data.Where(x => x.Value.LastAccessed < cutoff).ToList();
+        int removedCount = 0;
+
+        foreach (var kvp in staleSessions)
+        {
+            if (Data.TryRemove(kvp.Key, out _))
+            {
+                TimeSpan age = DateTime.UtcNow - kvp.Value.LastAccessed;
+                _logger?.LogInformation("Removed stale session '{SessionId}' (last accessed: {LastAccessed}, age: {Age})", 
+                    kvp.Key, kvp.Value.LastAccessed, age);
+                removedCount++;
+            }
+        }
+
+        if (removedCount > 0)
+        {
+            _logger?.LogInformation("Session cleanup completed. Removed {Count} stale sessions.", removedCount);
+        }
+
+        return removedCount;
+    }
+}
+
+public class SessionCleanupService : BackgroundService
+{
+    private readonly ISessionContext _sessionContext;
+    private readonly ILogger<SessionCleanupService> _logger;
+    private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(3);
+    private readonly TimeSpan _maxSessionAge = TimeSpan.FromMinutes(60);
+
+    public SessionCleanupService(ISessionContext sessionContext, ILogger<SessionCleanupService> logger)
+    {
+        _sessionContext = sessionContext;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("Session cleanup service started. Checking every {Interval} for sessions older than {MaxAge}.",
+            _checkInterval, _maxSessionAge);
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(_checkInterval, stoppingToken);
+                //_logger.LogInformation("Running session cleanup...");
+                _sessionContext.CleanupStaleSessions(_maxSessionAge);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when stopping
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during session cleanup");
+            }
+        }
+
+        _logger.LogInformation("Session cleanup service stopped.");
+    }
 }
 
 
