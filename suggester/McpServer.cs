@@ -327,6 +327,124 @@ public class SuggesterTools : IDisposable
                $"- User ID: {user_id}\n\n");
     }    
 
+    [McpServerTool, Description("Get the list of recently watched movies by the logged-in user.")]
+    public async Task<string> RecentlyWatched(
+        [Description("Number of recently watched movies to return (default: 10)")] int topN = 10)
+    {
+
+        _sessionContext.PrintAllSessions();
+        SessionData sessionData = _sessionContext.GetSessionData(_sessionId);
+
+        string userId = sessionData.Data.ContainsKey("user_id") ? sessionData.Data["user_id"].ToString() ?? "" : "";
+        string accessToken = sessionData.Data.ContainsKey("access_token") ? sessionData.Data["access_token"].ToString() ?? "" : "";
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(accessToken))
+        {
+            var notLoggedInResult = "You are not logged into the Emby server. Please use the LoginToEmbyServer tool to log in.";
+            LogToolResponse(nameof(RecentlyWatched), notLoggedInResult);
+            return notLoggedInResult;
+        }
+
+        var recentlyWatchedMovies = await _embyClient.RecentlyWatchedAsync(userId, accessToken, topN);
+
+        // Format the list of recently watched movies
+        if (recentlyWatchedMovies == null || recentlyWatchedMovies.Count == 0)
+        {
+            var noMoviesResult = "No recently watched movies found.";
+            LogToolResponse(nameof(RecentlyWatched), noMoviesResult);
+            return noMoviesResult;
+        }
+
+        var resultBuilder = new System.Text.StringBuilder();
+        resultBuilder.AppendLine($"Recently watched movies (top {topN}):");
+        resultBuilder.AppendLine();
+        
+        foreach (var movie in recentlyWatchedMovies)
+        {
+            resultBuilder.AppendLine($"## {movie.Name} ({movie.ProductionYear}) [ID: {movie.Id}]");
+            
+            // Genres
+            if (movie.Genres?.Count > 0)
+            {
+                resultBuilder.AppendLine($"**Genres:** {string.Join(", ", movie.Genres)}");
+            }
+            
+            // Overview/Plot
+            if (!string.IsNullOrEmpty(movie.Overview))
+            {
+                var overview = movie.Overview.Length > 300 
+                    ? movie.Overview[..300] + "..." 
+                    : movie.Overview;
+                resultBuilder.AppendLine($"**Overview:** {overview}");
+            }
+            
+            // Taglines
+            if (movie.Taglines?.Count > 0)
+            {
+                resultBuilder.AppendLine($"**Tagline:** {movie.Taglines[0]}");
+            }
+            
+            // Directors
+            var directors = movie.People?.Where(p => p.Type == "Director").Select(p => p.Name).ToList();
+            if (directors?.Count > 0)
+            {
+                resultBuilder.AppendLine($"**Director(s):** {string.Join(", ", directors)}");
+            }
+            
+            // Main Cast (top 5 actors)
+            var actors = movie.People?.Where(p => p.Type == "Actor").Take(5).Select(p => p.Name).ToList();
+            if (actors?.Count > 0)
+            {
+                resultBuilder.AppendLine($"**Cast:** {string.Join(", ", actors)}");
+            }
+            
+            // Studios
+            if (movie.Studios?.Count > 0)
+            {
+                var studioNames = movie.Studios.Select(s => s.Name).ToList();
+                resultBuilder.AppendLine($"**Studios:** {string.Join(", ", studioNames)}");
+            }
+            
+            // Ratings
+            var ratings = new List<string>();
+            if (!string.IsNullOrEmpty(movie.OfficialRating))
+            {
+                ratings.Add($"Rated {movie.OfficialRating}");
+            }
+            if (movie.CommunityRating.HasValue)
+            {
+                ratings.Add($"Community: {movie.CommunityRating:F1}/10");
+            }
+            if (movie.CriticRating.HasValue)
+            {
+                ratings.Add($"Critic: {movie.CriticRating}%");
+            }
+            if (ratings.Count > 0)
+            {
+                resultBuilder.AppendLine($"**Ratings:** {string.Join(" | ", ratings)}");
+            }
+            
+            // Runtime
+            if (movie.RunTimeTicks.HasValue)
+            {
+                var runtime = TimeSpan.FromTicks(movie.RunTimeTicks.Value);
+                resultBuilder.AppendLine($"**Runtime:** {(int)runtime.TotalMinutes} minutes");
+            }
+            
+            // Tags
+            if (movie.TagItems?.Count > 0)
+            {
+                var tagNames = movie.TagItems.Select(t => t.Name).ToList();
+                resultBuilder.AppendLine($"**Tags:** {string.Join(", ", tagNames)}");
+            }
+            
+            resultBuilder.AppendLine();
+        }
+
+        var result = resultBuilder.ToString();
+        LogToolResponse(nameof(RecentlyWatched), result);
+        return result;
+    }
+
     [McpServerTool, Description("Search for movies similar to a given movie by its ID. Returns a list of similar movies based on embedding similarity.")]
     public async Task<string> FindSimilarMovies(
         [Description("The movie ID to find similar movies for")] string movieId,

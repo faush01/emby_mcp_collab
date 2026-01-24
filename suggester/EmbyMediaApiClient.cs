@@ -79,18 +79,14 @@ namespace suggester
                 
                 if(response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    Console.WriteLine("Authentication failed: Unauthorized");
+                    Console.WriteLine($"Authentication failed: Unauthorized:\n{responseText}");
                     return new AuthenticationResponse { Message = "Unauthorized: " + responseText };
                 }
                 response.EnsureSuccessStatusCode();
 
                 var authResponse = JsonSerializer.Deserialize<AuthenticationResponse>(responseText, _jsonOptions);
-
                 if (authResponse != null && !string.IsNullOrEmpty(authResponse.AccessToken))
                 {
-                    // Store the access token for future requests
-                    _httpClient.DefaultRequestHeaders.Authorization =
-                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", authResponse.AccessToken);
                     return authResponse;
                 }
 
@@ -106,7 +102,64 @@ namespace suggester
                 Console.WriteLine($"JSON parsing failed: {ex.Message}");
                 throw;
             }
-        }   
+        }
+
+        public async Task<List<Movie>> RecentlyWatchedAsync(
+            string userId,
+            string accessToken,
+            int limit = 10,
+            CancellationToken cancellationToken = default)
+        {
+            var queryParams = new Dictionary<string, string>
+            {
+                ["IncludeItemTypes"] = "Movie",
+                ["Fields"] = string.Join(",", FieldNames),
+                ["IsPlayed"] = "True",
+                ["SortBy"] = "DatePlayed",
+                ["SortOrder"] = "Descending",
+                ["CollapseBoxSetItems"] = "False",
+                ["GroupItemsIntoCollections"] = "False",
+                ["Recursive"] = "True",
+                ["IsMissing"] = "False",
+                ["ImageTypeLimit"] = "1",
+                ["Limit"] = limit.ToString()//,
+                //["api_key"] = _apiKey
+            };
+
+            var queryString = string.Join("&", queryParams.Select(kvp => $"{kvp.Key}={Uri.EscapeDataString(kvp.Value)}"));
+            var requestUri = $"Users/{userId}/Items?{queryString}";
+            Console.WriteLine($"Request URI: {requestUri}");
+
+            // add auth token to header as X-MediaBrowser-Token
+            _httpClient.DefaultRequestHeaders.Remove("X-MediaBrowser-Token");
+            _httpClient.DefaultRequestHeaders.Add("X-MediaBrowser-Token", accessToken);
+
+            try
+            {
+                var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"RecentlyWatchedAsync failed with status {response.StatusCode}:\n{responseText}");
+                }
+                response.EnsureSuccessStatusCode();
+                MediaResponse? mediaResponse =
+                    //await response.Content.ReadFromJsonAsync<MediaResponse>(_jsonOptions, cancellationToken);
+                    JsonSerializer.Deserialize<MediaResponse>(responseText, _jsonOptions);
+
+                return mediaResponse?.Items ?? new List<Movie>();
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"HTTP request failed: {ex.Message}");
+                throw;
+            }
+            catch (JsonException ex)
+            {
+                Console.WriteLine($"JSON parsing failed: {ex.Message}");
+                throw;
+            }
+        }
 
         public async Task<Movie?> GetMovieAsync(string movieId, CancellationToken cancellationToken = default)
         {
@@ -125,6 +178,11 @@ namespace suggester
             try
             {
                 var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                    Console.WriteLine($"GetMovieAsync failed with status {response.StatusCode}: {errorText}");
+                }
                 response.EnsureSuccessStatusCode();
                 MediaResponse? mediaResponse =
                     await response.Content.ReadFromJsonAsync<MediaResponse>(_jsonOptions, cancellationToken);
@@ -167,6 +225,11 @@ namespace suggester
             try
             {
                 var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                    Console.WriteLine($"GetMoviesAsync failed with status {response.StatusCode}: {errorText}");
+                }
                 response.EnsureSuccessStatusCode();
                 MediaResponse? mediaResponse = 
                     await response.Content.ReadFromJsonAsync<MediaResponse>(_jsonOptions, cancellationToken);
@@ -199,6 +262,11 @@ namespace suggester
             try
             {
                 var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                    Console.WriteLine($"GetBoxSetCollectionsAsync failed with status {response.StatusCode}: {errorText}");
+                }
                 response.EnsureSuccessStatusCode();
                 BoxSetResponse? boxSetResponse 
                     = await response.Content.ReadFromJsonAsync<BoxSetResponse>(_jsonOptions, cancellationToken);
@@ -232,6 +300,11 @@ namespace suggester
             try
             {
                 var response = await _httpClient.GetAsync(requestUri, cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                    Console.WriteLine($"GetMoviesInCollectionAsync failed with status {response.StatusCode}: {errorText}");
+                }
                 response.EnsureSuccessStatusCode();
                 MediaResponse? mediaResponse = 
                     await response.Content.ReadFromJsonAsync<MediaResponse>(_jsonOptions, cancellationToken);

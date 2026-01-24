@@ -117,6 +117,14 @@ public class McpTestClient
             });
             PrintResult(detailsResult);
 
+            // Test recently_watched
+            Console.WriteLine("=== Testing recently_watched (topN: 5) ===");
+            var recentResult = await client.CallToolAsync("recently_watched", new Dictionary<string, object?>
+            {
+                ["topN"] = 5
+            });
+            PrintResult(recentResult);
+
             // Test show_tool_session_data
             Console.WriteLine("=== Testing show_tool_session_data ===");
             var sessionDataResult = await client.CallToolAsync("show_tool_session_data", new Dictionary<string, object?>());
