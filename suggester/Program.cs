@@ -227,12 +227,17 @@ namespace suggester
             }
             else if (args.Length > 0 && args[0] == "test")
             {
+                string testId = "11";
+                if (args.Length > 1)
+                {
+                    testId = args[1];
+                }
                 string serverUrl = "http://localhost:5050/mcp";
                 if (args.Length > 2)
                 {
                     serverUrl = args[2];
                 }
-                var testClient = new McpTestClient(args[1], serverUrl);
+                var testClient = new McpTestClient(testId, serverUrl);
                 await testClient.RunTestsAsync();
                 return;
             }
