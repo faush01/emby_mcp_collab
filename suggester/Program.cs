@@ -207,6 +207,16 @@ namespace suggester
         {
             if (args.Length > 0 && args[0] == "serve")
             {
+                SuggesterSettings config = SuggesterConfig.Settings;
+                // print all settings
+                Console.WriteLine("Current Configuration:");
+                Console.WriteLine($"EmbyApiBaseUrl : {config.EmbyApiBaseUrl}");
+                Console.WriteLine($"EmbyApiKey     : {(string.IsNullOrEmpty(config.EmbyApiKey) ? "(not set)" : "(set)")}");
+                Console.WriteLine($"OllamaEndpoint : {config.OllamaEndpoint}");
+                Console.WriteLine($"EmbeddingModel : {config.EmbeddingModel}");
+                Console.WriteLine($"DatabasePath   : {config.DatabasePath}");
+                Console.WriteLine($"SessionIdHeader: {config.SessionIdHeader}");
+
                 int port = 5050;
                 if (args.Length > 1 && int.TryParse(args[1], out var customPort))
                 {

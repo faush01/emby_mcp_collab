@@ -28,10 +28,32 @@ public static class SuggesterConfig
 
     private static SuggesterSettings LoadSettings()
     {
+        var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
+        var dataAppsettings = Path.Combine(dataDir, "appsettings.json");
+
+        // If no appsettings.json exists in the data directory, seed one from the example
+        if (!File.Exists(dataAppsettings))
+        {
+            Directory.CreateDirectory(dataDir);
+            var exampleFile = Path.Combine(AppContext.BaseDirectory, "appsettings_example.json");
+            if (File.Exists(exampleFile))
+            {
+                File.Copy(exampleFile, dataAppsettings);
+                Console.WriteLine($"Created {dataAppsettings} from appsettings_example.json — edit it with your settings.");
+            }
+            else
+            {
+                // If the example file is missing, create an empty config to avoid errors
+                File.WriteAllText(dataAppsettings, "{}");
+                Console.WriteLine($"Created empty {dataAppsettings} — edit it with your settings.");
+            }
+        }
+
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
             .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json", optional: true)
+            .AddJsonFile(dataAppsettings, optional: true, reloadOnChange: false)
             .AddEnvironmentVariables()
             .Build();
 
@@ -47,6 +69,6 @@ public class SuggesterSettings
     public string EmbyApiKey { get; set; } = "";
     public string OllamaEndpoint { get; set; } = "http://localhost:11434/v1";
     public string EmbeddingModel { get; set; } = "qwen3-embedding:0.6b";
-    public string DatabasePath { get; set; } = "docs.db";
+    public string DatabasePath { get; set; } = "data/docs.db";
     public string SessionIdHeader { get; set; } = "";
 }
