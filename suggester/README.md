@@ -211,3 +211,64 @@ dotnet publish -c Release -r win-x64 --self-contained
 ```
 
 **Note:** Make sure to copy `appsettings.json` alongside the published executable.
+
+
+## Docker
+
+```bash
+cd suggester
+docker build -t suggester-mcp .
+```
+
+```bash
+docker run -d --name suggester-mcp --restart unless-stopped -p 5050:5050 -v /opt/suggester-mcp/data:/app/data suggester-mcp:latest
+```
+
+To index your movie library from a running container:
+
+```bash
+docker exec -it suggester-mcp ./suggester add
+```
+
+To run MCP tests against the running container:
+
+```bash
+docker exec -it suggester-mcp ./suggester test <testId>
+```
+
+To view the container logs:
+
+```bash
+docker logs -f suggester-mcp
+```
+
+
+### Transfer Image via SSH
+
+If you don't have a registry, you can export the image as a tarball and upload it directly to a server:
+
+1. Save the image to a tar file:
+
+   ```bash
+   docker save suggester-mcp -o suggester-mcp.tar
+   ```
+
+2. Upload to the remote server via SSH:
+
+   ```bash
+   scp suggester-mcp.tar user@your-server:/tmp/
+   ```
+
+3. On the remote server, load the image:
+
+   ```bash
+   docker load -i /tmp/suggester-mcp.tar
+   ```
+
+Or as a single piped command (no intermediate file on the local machine):
+
+```bash
+docker save suggester-mcp | ssh user@your-server "docker load"
+```
+
+
